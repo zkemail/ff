@@ -13,8 +13,8 @@ repository = "https://github.com/matter-labs/ff"
 [dependencies]
 byteorder = "1"
 rand = "0.4"
-ff_derive = { version = "0.4.0", path = "ff_derive", optional = true }
+ff_derive_ce = { version = "0.4.0", path = "ff_derive", optional = true }
 
 [features]
 default = []
-derive = ["ff_derive"]
+derive = ["ff_derive_ce"]
