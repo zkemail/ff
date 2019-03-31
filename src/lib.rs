@@ -5,13 +5,10 @@ extern crate rand;
 
 #[cfg(feature = "derive")]
 #[macro_use]
-extern crate ff_derive;
+extern crate ff_derive_ce;
 
 #[cfg(feature = "derive")]
-pub use ff_derive::*;
-
-// #[cfg(feature = "asm")]
-// pub use ff_asm::*;
+pub use ff_derive_ce::*;
 
 use std::error::Error;
 use std::fmt;
