@@ -355,6 +355,30 @@ fn test_bit_iterator() {
     assert!(a.next().is_none());
 }
 
+#[cfg(feature = "derive")]
+#[cfg(test)]
+mod test {
+    #[macro_use]
+    use super::ff_derive_ce::*;
+
+    #[derive(PrimeField)]
+    #[PrimeFieldModulus = "17"]
+    #[PrimeFieldGenerator = "2"]
+    struct Fr(FrRepr);
+}
+
+#[cfg(feature = "serde")]
+#[cfg(test)]
+mod test {
+    #[macro_use]
+    use super::ff_derive_ce::*;
+
+    #[derive(PrimeField)]
+    #[PrimeFieldModulus = "17"]
+    #[PrimeFieldGenerator = "2"]
+    struct Fr(FrRepr);
+}
+
 pub use self::arith_impl::*;
 
 mod arith_impl {

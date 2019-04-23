@@ -1,6 +1,6 @@
 [package]
 name = "ff_ce"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Sean Bowe <ewillbefull@gmail.com>",
     "Alex Gluchowski <alex@gluchowski.net>",
     "Alex Vlasov <alex.m.vlasov@gmail.com>"]
@@ -14,7 +14,9 @@ repository = "https://github.com/matter-labs/ff"
 byteorder = "1"
 rand = "0.4"
 ff_derive_ce = { version = "0.4.0", path = "ff_derive", optional = true }
+serde_derive = "1.0.80"
 
 [features]
 default = []
 derive = ["ff_derive_ce"]
+serde = ["ff_derive_ce/serde"]

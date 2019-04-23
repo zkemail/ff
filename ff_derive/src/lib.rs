@@ -65,6 +65,10 @@ pub fn prime_field(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     gen.extend(constants_impl);
     gen.extend(prime_field_repr_impl(&repr_ident, limbs));
     gen.extend(prime_field_impl(&ast.ident, &repr_ident, limbs));
+
+    #[cfg(feature = "serde")]
+    gen.extend(serde_impl(&ast.ident));
+
     gen.extend(sqrt_impl);
 
     // Return the generated impl
@@ -1091,8 +1095,17 @@ fn prime_field_impl(
                 #name::from_repr(repr).map_err(|e| format!("could not convert into prime field: {}: {}", value, &e))
             }
         }
+    }
+}
 
-        impl serde::Serialize for #name {
+
+// Implement serde features for element
+#[cfg(feature = "serde")]
+fn serde_impl(
+    name: &syn::Ident
+) -> proc_macro2::TokenStream {
+    quote! {
+        impl ::serde::Serialize for #name {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
                 S: serde::Serializer,
@@ -1103,11 +1116,11 @@ fn prime_field_impl(
 
         use std::fmt;
 
-        use serde::de::{self, Visitor};
+        use ::serde::de::{self, Visitor};
 
-        struct FrVisitor;
+        struct ReprVisitor;
 
-        impl<'de> Visitor<'de> for FrVisitor {
+        impl<'de> Visitor<'de> for ReprVisitor {
             type Value = #name;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -1122,12 +1135,12 @@ fn prime_field_impl(
             }
         }
 
-        impl<'de> serde::Deserialize<'de> for #name {
+        impl<'de> ::serde::Deserialize<'de> for #name {
             fn deserialize<D>(deserializer: D) -> Result<#name, D::Error>
             where
                 D: serde::Deserializer<'de>,
             {
-                deserializer.deserialize_str(FrVisitor)
+                deserializer.deserialize_str(ReprVisitor)
             }
         }
     }
