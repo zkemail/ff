@@ -894,7 +894,7 @@ fn prime_field_impl(
                 r.0
             }
 
-            fn char() -> #repr {
+            const fn char() -> #repr {
                 MODULUS
             }
 
@@ -902,13 +902,13 @@ fn prime_field_impl(
 
             const CAPACITY: u32 = Self::NUM_BITS - 1;
 
-            fn multiplicative_generator() -> Self {
+            const fn multiplicative_generator() -> Self {
                 #name(GENERATOR)
             }
 
             const S: u32 = S;
 
-            fn root_of_unity() -> Self {
+            const fn root_of_unity() -> Self {
                 #name(ROOT_OF_UNITY)
             }
 
@@ -916,12 +916,12 @@ fn prime_field_impl(
 
         impl ::ff::Field for #name {
             #[inline]
-            fn zero() -> Self {
+            const fn zero() -> Self {
                 #name(#repr::from(0))
             }
 
             #[inline]
-            fn one() -> Self {
+            const fn one() -> Self {
                 #name(R)
             }
 
