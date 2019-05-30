@@ -270,7 +270,7 @@ pub trait PrimeField: Field {
     }
 
     /// Convert this prime field element into a biginteger representation.
-    fn from_repr(Self::Repr) -> Result<Self, PrimeFieldDecodingError>;
+    fn from_repr(repr: Self::Repr) -> Result<Self, PrimeFieldDecodingError>;
 
     /// Convert a biginteger representation into a prime field element, if
     /// the number is an element of the field.
