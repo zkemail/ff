@@ -276,6 +276,9 @@ pub trait PrimeField: Field {
     /// the number is an element of the field.
     fn into_repr(&self) -> Self::Repr;
 
+    /// Expose Montgommery represendation
+    fn into_raw_repr(&self) -> Self::Repr;
+
     /// Returns the field characteristic; the modulus.
     fn char() -> Self::Repr;
 

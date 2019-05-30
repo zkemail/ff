@@ -898,6 +898,11 @@ fn prime_field_impl(
                 r.0
             }
 
+            fn into_raw_repr(&self) -> #repr {
+                let r = *self;
+                r.0
+            }
+
             fn char() -> #repr {
                 MODULUS
             }
