@@ -889,6 +889,15 @@ fn prime_field_impl(
                 }
             }
 
+            fn from_raw_repr(repr: Self::Repr) -> Result<Self, PrimeFieldDecodingError> {
+                let mut r = #name(r);
+                if r.is_valid() {
+                    Ok(r)
+                } else {
+                    Err(PrimeFieldDecodingError::NotInField(format!("{}", r.0)))
+                }
+            }
+
             fn into_repr(&self) -> #repr {
                 let mut r = *self;
                 r.mont_reduce(
