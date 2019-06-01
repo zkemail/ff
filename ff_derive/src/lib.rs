@@ -889,7 +889,7 @@ fn prime_field_impl(
                 }
             }
 
-            fn from_raw_repr(repr: Self::Repr) -> Result<Self, PrimeFieldDecodingError> {
+            fn from_raw_repr(r: #repr) -> Result<Self, PrimeFieldDecodingError> {
                 let mut r = #name(r);
                 if r.is_valid() {
                     Ok(r)
