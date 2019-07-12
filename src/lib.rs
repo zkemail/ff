@@ -5,6 +5,10 @@
 
 extern crate byteorder;
 extern crate rand;
+extern crate hex as hex_ext;
+pub mod hex {
+    pub use hex_ext::*;
+}
 
 #[cfg(feature = "derive")]
 #[macro_use]
@@ -12,10 +16,6 @@ extern crate ff_derive_ce;
 
 #[cfg(feature = "derive")]
 pub use ff_derive_ce::*;
-
-#[cfg(feature = "derive_serde")]
-extern crate serde;
-extern crate serde_json;
 
 use std::error::Error;
 use std::fmt;
@@ -368,56 +368,9 @@ fn test_bit_iterator() {
     assert!(a.next().is_none());
 }
 
-#[cfg(test)]
-#[cfg(feature = "derive")]
-mod derive {
-    use crate::*;
-
-    #[derive(PrimeField)]
-    #[PrimeFieldModulus = "21888242871839275222246405745257275088696311157297823662689037894645226208583"]
-    #[PrimeFieldGenerator = "2"]
-    struct Fr(FrRepr);
-
-    #[test]
-    fn test() {
-        let a = Fr::from_repr(FrRepr::from(2)).unwrap();
-        assert_eq!("0000000000000000000000000000000000000000000000000000000000000002", a.to_hex());
-    }
-}
-
-#[cfg(test)]
-#[cfg(feature = "derive_serde")]
-mod serialization_test {
-    use crate::*;
-    use super::serde_json;
-
-    #[derive(PrimeField)]
-    #[PrimeFieldModulus = "21888242871839275222246405745257275088696311157297823662689037894645226208583"]
-    #[PrimeFieldGenerator = "2"]
-    struct Fr(FrRepr);
-
-    #[test]
-    fn test() {
-        let a = Fr::from_repr(FrRepr::from(32)).unwrap();
-        let serialized = serde_json::to_string(&a).unwrap();
-        assert_eq!("\"0x0000000000000000000000000000000000000000000000000000000000000020\"", serialized);
-
-    }
-}
-
 pub use self::arith_impl::*;
 
 mod arith_impl {
-    // /// Calculate a - b - borrow, returning the result and modifying
-    // /// the borrow value.
-    // #[inline(always)]
-    // pub fn sbb(a: u64, b: u64, borrow: &mut u64) -> u64 {
-    //     let tmp = (1u128 << 64) + u128::from(a) - u128::from(b) - u128::from(*borrow);
-
-    //     *borrow = if tmp >> 64 == 0 { 1 } else { 0 };
-
-    //     tmp as u64
-    // }
 
     /// Calculate a - b - borrow, returning the result and modifying
     /// the borrow value.
@@ -432,17 +385,6 @@ mod arith_impl {
         tmp as u64
     }
 
-    // /// Calculate a + b + carry, returning the sum and modifying the
-    // /// carry value.
-    // #[inline(always)]
-    // pub fn adc(a: u64, b: u64, carry: &mut u64) -> u64 {
-    //     let tmp = u128::from(a) + u128::from(b) + u128::from(*carry);
-
-    //     *carry = (tmp >> 64) as u64;
-
-    //     tmp as u64
-    // }
-
     /// Calculate a + b + carry, returning the sum and modifying the
     /// carry value.
     #[inline(always)]
@@ -455,17 +397,6 @@ mod arith_impl {
 
         tmp as u64
     }
-
-    // /// Calculate a + (b * c) + carry, returning the least significant digit
-    // /// and setting carry to the most significant digit.
-    // #[inline(always)]
-    // pub fn mac_with_carry(a: u64, b: u64, c: u64, carry: &mut u64) -> u64 {
-    //     let tmp = (u128::from(a)) + u128::from(b) * u128::from(c) + u128::from(*carry);
-
-    //     *carry = (tmp >> 64) as u64;
-
-    //     tmp as u64
-    // }
 
     /// Calculate a + (b * c) + carry, returning the least significant digit
     /// and setting carry to the most significant digit.

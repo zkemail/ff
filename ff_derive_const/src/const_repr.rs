@@ -239,13 +239,13 @@ impl<const N: usize> ::ff::PrimeFieldRepr for BigintRepresentation<{N}> where [u
 }
 
 pub trait FullMultiplication {
-    type Multiplicant;
+    type Multiplicand;
     type MulResult;
 }
 
 impl<const N: usize> FullMultiplication for BigintRepresentation<{N}> 
 {
-    type Multiplicant = BigintRepresentation<{N}>;
-    type MulResult = BigintRepresentation<{2*N}>;
+    type Multiplicand = BigintRepresentation<{N}>;
+    type MulResult = BigintRepresentation<{N*2}>;
 }
 

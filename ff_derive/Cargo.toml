@@ -9,7 +9,7 @@ documentation = "https://docs.rs/ff/"
 homepage = "https://github.com/matter-labs/ff"
 license = "MIT/Apache-2.0"
 repository = "https://github.com/matter-labs/ff"
-#edition = "2018"
+edition = "2018"
 
 [lib]
 proc-macro = true
@@ -21,8 +21,6 @@ num-integer = "0.1"
 proc-macro2 = "0.4"
 quote = "0.6"
 syn = "0.14"
-serde = "1.0.80"
-hex = "0.3.2"
 
 [features]
 default = []

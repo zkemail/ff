@@ -15,9 +15,7 @@ edition = "2018"
 byteorder = "1"
 rand = "0.4"
 ff_derive_ce = { version = "0.5.0", path = "ff_derive", optional = true }
-serde = "1.0.80"
-hex = "0.3.2"
-serde_json = "1.0"
+hex = {version = "0.3.2"}
 
 [dev.dependencies]
 num-bigint = "0.2"

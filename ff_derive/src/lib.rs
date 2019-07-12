@@ -6,11 +6,6 @@ extern crate syn;
 #[macro_use]
 extern crate quote;
  
-extern crate hex;
-
-#[cfg(feature = "derive_serde")]
-extern crate serde;
-
 extern crate num_bigint;
 extern crate num_integer;
 extern crate num_traits;
@@ -141,9 +136,9 @@ fn prime_field_repr_impl(repr: &syn::Ident, limbs: usize) -> proc_macro2::TokenS
         impl ::std::fmt::Debug for #repr
         {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                try!(write!(f, "0x"));
+                write!(f, "0x")?;
                 for i in self.0.iter().rev() {
-                    try!(write!(f, "{:016x}", *i));
+                    write!(f, "{:016x}", *i)?;
                 }
 
                 Ok(())
@@ -159,9 +154,9 @@ fn prime_field_repr_impl(repr: &syn::Ident, limbs: usize) -> proc_macro2::TokenS
 
         impl ::std::fmt::Display for #repr {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                try!(write!(f, "0x"));
+                write!(f, "0x")?;
                 for i in self.0.iter().rev() {
-                    try!(write!(f, "{:016x}", *i));
+                    write!(f, "{:016x}", *i)?;
                 }
 
                 Ok(())
@@ -878,23 +873,23 @@ fn prime_field_impl(
         impl ::ff::PrimeField for #name {
             type Repr = #repr;
 
-            fn from_repr(r: #repr) -> Result<#name, PrimeFieldDecodingError> {
+            fn from_repr(r: #repr) -> Result<#name, ::ff::PrimeFieldDecodingError> {
                 let mut r = #name(r);
                 if r.is_valid() {
                     r.mul_assign(&#name(R2));
 
                     Ok(r)
                 } else {
-                    Err(PrimeFieldDecodingError::NotInField(format!("{}", r.0)))
+                    Err(::ff::PrimeFieldDecodingError::NotInField(format!("{}", r.0)))
                 }
             }
 
-            fn from_raw_repr(r: #repr) -> Result<Self, PrimeFieldDecodingError> {
+            fn from_raw_repr(r: #repr) -> Result<Self, ::ff::PrimeFieldDecodingError> {
                 let mut r = #name(r);
                 if r.is_valid() {
                     Ok(r)
                 } else {
-                    Err(PrimeFieldDecodingError::NotInField(format!("{}", r.0)))
+                    Err(::ff::PrimeFieldDecodingError::NotInField(format!("{}", r.0)))
                 }
             }
 
@@ -1100,13 +1095,13 @@ fn prime_field_impl(
             pub fn to_hex(&self) -> String {
                 let mut buf: Vec<u8> = vec![];
                 self.into_repr().write_be(&mut buf).unwrap();
-                hex::encode(&buf)
+                ::ff::hex::encode(&buf)
             }
 
             pub fn from_hex(value: &str) -> Result<#name, String> {
                 let value = if value.starts_with("0x") { &value[2..] } else { value };
                 if value.len() % 2 != 0 {return Err(format!("hex length must be even for full byte encoding: {}", value))}
-                let mut buf = hex::decode(&value).map_err(|_| format!("could not decode hex: {}", value))?;
+                let mut buf = ::ff::hex::decode(&value).map_err(|_| format!("could not decode hex: {}", value))?;
                 buf.reverse();
                 buf.resize(#limbs * 8, 0);
                 let mut repr = #repr::default();
@@ -1124,7 +1119,6 @@ fn serde_impl(
 ) -> proc_macro2::TokenStream {
     quote! {
         use std::fmt;
-        use serde;
 
         impl ::serde::Serialize for #name {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -1152,10 +1146,10 @@ fn serde_impl(
             }
         }
 
-        impl<'de> serde::Deserialize<'de> for #name {
+        impl<'de> ::serde::Deserialize<'de> for #name {
             fn deserialize<D>(deserializer: D) -> Result<#name, D::Error>
             where
-                D: serde::Deserializer<'de>,
+                D: ::serde::Deserializer<'de>,
             {
                 deserializer.deserialize_str(ReprVisitor)
             }
