@@ -1,10 +1,8 @@
 [package]
-name = "ff_derive_ce"
-version = "0.5.0"
-authors = ["Sean Bowe <ewillbefull@gmail.com>",    
-    "Alex Gluchowski <alex@gluchowski.net>",
-    "Alex Vlasov <alex.m.vlasov@gmail.com>"]
-description = "Procedural macro library used to build custom prime field implementations"
+name = "ff_derive_const_ce"
+version = "0.1.0"
+authors = ["Alex Vlasov <alex.m.vlasov@gmail.com>"]
+description = "Procedural macro library used to build custom prime field implementations using const generics"
 documentation = "https://docs.rs/ff/"
 homepage = "https://github.com/matter-labs/ff"
 license = "MIT/Apache-2.0"
@@ -12,7 +10,7 @@ repository = "https://github.com/matter-labs/ff"
 edition = "2018"
 
 [lib]
-proc-macro = true
+#proc-macro = true
 
 [dependencies]
 num-bigint = "0.2"
@@ -21,6 +19,11 @@ num-integer = "0.1"
 proc-macro2 = "0.4"
 quote = "0.6"
 syn = "0.14"
+serde = "1.0.80"
+hex = "0.3.2"
+ff = { package = "ff_ce", version = "0.6" }
+rand = "0.4"
+crunchy = "0.2"
 
 [features]
 default = []

@@ -1,7 +1,14 @@
 #![allow(unused_imports)]
 
+// #![feature(test)]
+// mod tests;
+
 extern crate byteorder;
 extern crate rand;
+extern crate hex as hex_ext;
+pub mod hex {
+    pub use hex_ext::*;
+}
 
 #[cfg(feature = "derive")]
 #[macro_use]
@@ -263,11 +270,17 @@ pub trait PrimeField: Field {
     }
 
     /// Convert this prime field element into a biginteger representation.
-    fn from_repr(Self::Repr) -> Result<Self, PrimeFieldDecodingError>;
+    fn from_repr(repr: Self::Repr) -> Result<Self, PrimeFieldDecodingError>;
+
+    /// Creates an element from raw representation in Montgommery form.
+    fn from_raw_repr(repr: Self::Repr) -> Result<Self, PrimeFieldDecodingError>;
 
     /// Convert a biginteger representation into a prime field element, if
     /// the number is an element of the field.
     fn into_repr(&self) -> Self::Repr;
+
+    /// Expose Montgommery represendation.
+    fn into_raw_repr(&self) -> Self::Repr;
 
     /// Returns the field characteristic; the modulus.
     fn char() -> Self::Repr;
@@ -358,11 +371,14 @@ fn test_bit_iterator() {
 pub use self::arith_impl::*;
 
 mod arith_impl {
+
     /// Calculate a - b - borrow, returning the result and modifying
     /// the borrow value.
     #[inline(always)]
     pub fn sbb(a: u64, b: u64, borrow: &mut u64) -> u64 {
-        let tmp = (1u128 << 64) + u128::from(a) - u128::from(b) - u128::from(*borrow);
+        use std::num::Wrapping;
+
+        let tmp = (1u128 << 64).wrapping_add(u128::from(a)).wrapping_sub(u128::from(b)).wrapping_sub(u128::from(*borrow));
 
         *borrow = if tmp >> 64 == 0 { 1 } else { 0 };
 
@@ -373,7 +389,9 @@ mod arith_impl {
     /// carry value.
     #[inline(always)]
     pub fn adc(a: u64, b: u64, carry: &mut u64) -> u64 {
-        let tmp = u128::from(a) + u128::from(b) + u128::from(*carry);
+        use std::num::Wrapping;
+
+        let tmp = u128::from(a).wrapping_add(u128::from(b)).wrapping_add(u128::from(*carry));
 
         *carry = (tmp >> 64) as u64;
 
@@ -384,7 +402,9 @@ mod arith_impl {
     /// and setting carry to the most significant digit.
     #[inline(always)]
     pub fn mac_with_carry(a: u64, b: u64, c: u64, carry: &mut u64) -> u64 {
-        let tmp = (u128::from(a)) + u128::from(b) * u128::from(c) + u128::from(*carry);
+        use std::num::Wrapping;
+
+        let tmp = (u128::from(a)).wrapping_add(u128::from(b).wrapping_mul(u128::from(c))).wrapping_add(u128::from(*carry));
 
         *carry = (tmp >> 64) as u64;
 
