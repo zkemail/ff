@@ -10,6 +10,10 @@ homepage = "https://github.com/matter-labs/ff"
 license = "MIT/Apache-2.0"
 repository = "https://github.com/matter-labs/ff"
 edition = "2018"
+exclude = [
+    "ff_derive_const",
+    "tester"
+]
 
 [dependencies]
 byteorder = "1"
