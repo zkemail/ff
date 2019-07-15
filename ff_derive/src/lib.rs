@@ -688,23 +688,29 @@ fn prime_field_impl(
             });
         }
 
-        for i in 1..(limbs * 2) {
-            let temp0 = get_temp(limbs * 2 - i);
-            let temp1 = get_temp(limbs * 2 - i - 1);
+        if limbs != 1 {
+            for i in 1..(limbs * 2) {
+                let temp0 = get_temp(limbs * 2 - i);
+                let temp1 = get_temp(limbs * 2 - i - 1);
 
-            if i == 1 {
-                gen.extend(quote!{
-                    let #temp0 = #temp1 >> 63;
-                });
-            } else if i == (limbs * 2 - 1) {
-                gen.extend(quote!{
-                    let #temp0 = #temp0 << 1;
-                });
-            } else {
-                gen.extend(quote!{
-                    let #temp0 = (#temp0 << 1) | (#temp1 >> 63);
-                });
+                if i == 1 {
+                    gen.extend(quote!{
+                        let #temp0 = #temp1 >> 63;
+                    });
+                } else if i == (limbs * 2 - 1) {
+                    gen.extend(quote!{
+                        let #temp0 = #temp0 << 1;
+                    });
+                } else {
+                    gen.extend(quote!{
+                        let #temp0 = (#temp0 << 1) | (#temp1 >> 63);
+                    });
+                }
             }
+        } else {
+            gen.extend(quote!{
+                let r1 = 0;
+            });
         }
 
         gen.extend(quote!{
