@@ -371,33 +371,14 @@ fn biguint_num_bits(mut v: BigUint) -> u32 {
     bits
 }
 
-/// BigUint modular exponentiation by square-and-multiply.
-fn exp(base: BigUint, exp: &BigUint, modulus: &BigUint) -> BigUint {
-    let mut ret = BigUint::one();
-
-    for i in exp.to_bytes_be()
-        .into_iter()
-        .flat_map(|x| (0..8).rev().map(move |i| (x >> i).is_odd()))
-    {
-        ret = (&ret * &ret) % modulus;
-        if i {
-            ret = (ret * &base) % modulus;
-        }
-    }
-
-    ret
-}
-
 #[test]
 fn test_exp() {
     assert_eq!(
-        exp(
-            BigUint::from_str("4398572349857239485729348572983472345").unwrap(),
+        BigUint::from_str("4398572349857239485729348572983472345").unwrap().modpow(
             &BigUint::from_str("5489673498567349856734895").unwrap(),
             &BigUint::from_str(
                 "52435875175126190479447740508185965837690552500527637822603658699938581184513"
-            ).unwrap()
-        ),
+        ).unwrap()),
         BigUint::from_str(
             "4371221214068404307866768905142520595925044802278091865033317963560480051536"
         ).unwrap()
@@ -432,7 +413,7 @@ fn prime_field_constants_and_sqrt(
 
     // Compute 2^s root of unity given the generator
     let root_of_unity = biguint_to_u64_vec(
-        (exp(generator.clone(), &t, &modulus) * &r) % &modulus,
+        (generator.clone().modpow(&t, &modulus) * &r) % &modulus,
         limbs,
     );
     let generator = biguint_to_u64_vec((generator.clone() * &r) % &modulus, limbs);
