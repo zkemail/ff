@@ -411,3 +411,32 @@ mod arith_impl {
         tmp as u64
     }
 }
+
+pub use to_hex::{to_hex, from_hex};
+
+mod to_hex {
+    use super::{PrimeField, PrimeFieldRepr, hex_ext};
+
+    pub fn to_hex<F: PrimeField>(el: &F) -> String {
+        let repr = el.into_repr();
+        let required_length = repr.as_ref().len() * 8;
+        let mut buf: Vec<u8> = Vec::with_capacity(required_length);
+        repr.write_be(&mut buf).unwrap();
+
+        hex_ext::encode(&buf)
+    }
+
+    pub fn from_hex<F: PrimeField>(value: &str) -> Result<F, String> {
+        let value = if value.starts_with("0x") { &value[2..] } else { value };
+        if value.len() % 2 != 0 {return Err(format!("hex length must be even for full byte encoding: {}", value))}
+        let mut buf = hex_ext::decode(&value).map_err(|_| format!("could not decode hex: {}", value))?;
+        let mut repr = F::Repr::default();
+        let required_length = repr.as_ref().len() * 8;
+        buf.reverse();
+        buf.resize(required_length, 0);
+
+        repr.read_le(&buf[..]).map_err(|e| format!("could not read {}: {}", value, &e))?;
+
+        F::from_repr(repr).map_err(|e| format!("could not convert into prime field: {}: {}", value, &e))
+    }
+}

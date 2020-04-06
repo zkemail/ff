@@ -29,4 +29,3 @@ num-integer = "0.1"
 [features]
 default = []
 derive = ["ff_derive_ce"]
-derive_serde = ["derive", "ff_derive_ce/derive_serde"]
