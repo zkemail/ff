@@ -10,7 +10,5 @@ repository = "https://github.com/matter-labs/ff"
 edition = "2018"
 
 [dependencies]
-ff = {package = "ff_ce", path = "../", features = ["derive", "derive_serde"]}
-serde_json = {version = "1.0"}
-serde = {version = "1.0"}
+ff = {package = "ff_ce", path = "../", features = ["derive"]}
 rand = "0.4"

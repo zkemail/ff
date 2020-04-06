@@ -371,33 +371,14 @@ fn biguint_num_bits(mut v: BigUint) -> u32 {
     bits
 }
 
-/// BigUint modular exponentiation by square-and-multiply.
-fn exp(base: BigUint, exp: &BigUint, modulus: &BigUint) -> BigUint {
-    let mut ret = BigUint::one();
-
-    for i in exp.to_bytes_be()
-        .into_iter()
-        .flat_map(|x| (0..8).rev().map(move |i| (x >> i).is_odd()))
-    {
-        ret = (&ret * &ret) % modulus;
-        if i {
-            ret = (ret * &base) % modulus;
-        }
-    }
-
-    ret
-}
-
 #[test]
 fn test_exp() {
     assert_eq!(
-        exp(
-            BigUint::from_str("4398572349857239485729348572983472345").unwrap(),
+        BigUint::from_str("4398572349857239485729348572983472345").unwrap().modpow(
             &BigUint::from_str("5489673498567349856734895").unwrap(),
             &BigUint::from_str(
                 "52435875175126190479447740508185965837690552500527637822603658699938581184513"
-            ).unwrap()
-        ),
+        ).unwrap()),
         BigUint::from_str(
             "4371221214068404307866768905142520595925044802278091865033317963560480051536"
         ).unwrap()
@@ -432,7 +413,7 @@ fn prime_field_constants_and_sqrt(
 
     // Compute 2^s root of unity given the generator
     let root_of_unity = biguint_to_u64_vec(
-        (exp(generator.clone(), &t, &modulus) * &r) % &modulus,
+        (generator.clone().modpow(&t, &modulus) * &r) % &modulus,
         limbs,
     );
     let generator = biguint_to_u64_vec((generator.clone() * &r) % &modulus, limbs);
@@ -1096,68 +1077,6 @@ fn prime_field_impl(
                 #montgomery_impl
 
                 self.reduce();
-            }
-
-            pub fn to_hex(&self) -> String {
-                let mut buf: Vec<u8> = vec![];
-                self.into_repr().write_be(&mut buf).unwrap();
-                crate::ff::hex::encode(&buf)
-            }
-
-            pub fn from_hex(value: &str) -> Result<#name, String> {
-                let value = if value.starts_with("0x") { &value[2..] } else { value };
-                if value.len() % 2 != 0 {return Err(format!("hex length must be even for full byte encoding: {}", value))}
-                let mut buf = crate::ff::hex::decode(&value).map_err(|_| format!("could not decode hex: {}", value))?;
-                buf.reverse();
-                buf.resize(#limbs * 8, 0);
-                let mut repr = #repr::default();
-                repr.read_le(&buf[..]).map_err(|e| format!("could not read {}: {}", value, &e))?;
-                #name::from_repr(repr).map_err(|e| format!("could not convert into prime field: {}: {}", value, &e))
-            }
-        }
-    }
-}
-
-// Implement serde features for element
-#[cfg(feature = "derive_serde")]
-fn serde_impl(
-    name: &syn::Ident
-) -> proc_macro2::TokenStream {
-    quote! {
-        use std::fmt;
-
-        impl ::serde::Serialize for #name {
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: ::serde::Serializer,
-            {
-                serializer.serialize_str(&format!("0x{}", &self.to_hex()))
-            }
-        }
-
-        struct ReprVisitor;
-
-        impl<'de> ::serde::de::Visitor<'de> for ReprVisitor {
-            type Value = #name;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a hex string with prefix: 0x012ab...")
-            }
-
-            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-            where
-                E: ::serde::de::Error,
-            {
-                #name::from_hex(&value[2..]).map_err(|e| E::custom(e))
-            }
-        }
-
-        impl<'de> ::serde::Deserialize<'de> for #name {
-            fn deserialize<D>(deserializer: D) -> Result<#name, D::Error>
-            where
-                D: ::serde::Deserializer<'de>,
-            {
-                deserializer.deserialize_str(ReprVisitor)
             }
         }
     }
