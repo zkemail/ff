@@ -163,6 +163,14 @@ fn prime_field_repr_impl(repr: &syn::Ident, limbs: usize) -> proc_macro2::TokenS
             }
         }
 
+        impl std::hash::Hash for #repr {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                for limb in self.0.iter() {
+                    limb.hash(state);
+                }
+            }
+        }
+
         impl AsRef<[u64]> for #repr {
             #[inline(always)]
             fn as_ref(&self) -> &[u64] {
@@ -1044,6 +1052,14 @@ fn prime_field_impl(
         impl std::default::Default for #name {
             fn default() -> Self {
                 Self::zero()
+            }
+        }
+
+        impl std::hash::Hash for #name {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                for limb in self.0.as_ref().iter() {
+                    limb.hash(state);
+                }
             }
         }
 

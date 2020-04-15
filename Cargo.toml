@@ -21,10 +21,10 @@ rand = "0.4"
 ff_derive_ce = { version = "0.7", path = "ff_derive", optional = true }
 hex = {version = "0.4"}
 
-[dev.dependencies]
-num-bigint = "0.2"
-num-traits = "0.2"
-num-integer = "0.1"
+# [dev.dependencies]
+# num-bigint = "0.2"
+# num-traits = "0.2"
+# num-integer = "0.1"
 
 [features]
 default = []

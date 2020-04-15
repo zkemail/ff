@@ -19,11 +19,12 @@ pub use ff_derive_ce::*;
 
 use std::error::Error;
 use std::fmt;
+use std::hash;
 use std::io::{self, Read, Write};
 
 /// This trait represents an element of a field.
 pub trait Field:
-    Sized + Eq + Copy + Clone + Send + Sync + fmt::Debug + fmt::Display + 'static + rand::Rand
+    Sized + Eq + Copy + Clone + Send + Sync + fmt::Debug + fmt::Display + 'static + rand::Rand + hash::Hash
 {
     /// Returns the zero element of the field, the additive identity.
     fn zero() -> Self;
@@ -111,6 +112,7 @@ pub trait PrimeFieldRepr:
     + AsRef<[u64]>
     + AsMut<[u64]>
     + From<u64>
+    + hash::Hash
 {
     /// Subtract another represetation from this one.
     fn sub_noborrow(&mut self, other: &Self);
@@ -306,7 +308,7 @@ pub trait PrimeField: Field {
 /// An "engine" is a collection of types (fields, elliptic curve groups, etc.)
 /// with well-defined relationships. Specific relationships (for example, a
 /// pairing-friendly curve) can be defined in a subtrait.
-pub trait ScalarEngine: Sized + 'static + Clone {
+pub trait ScalarEngine: Sized + 'static + Clone + Copy + std::hash::Hash {
     /// This is the scalar field of the engine's groups.
     type Fr: PrimeField + SqrtField;
 }
@@ -339,6 +341,16 @@ impl<E: AsRef<[u64]>> Iterator for BitIterator<E> {
             Some(self.t.as_ref()[part] & (1 << bit) > 0)
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.n, Some(self.n))
+    }
+}
+
+impl<E: AsRef<[u64]>> ExactSizeIterator for BitIterator<E> {
+    fn len(&self) -> usize {
+        self.n
+    }
 }
 
 #[test]
@@ -366,6 +378,25 @@ fn test_bit_iterator() {
     }
 
     assert!(a.next().is_none());
+}
+
+
+#[test]
+fn test_bit_iterator_length() {
+    let a = BitIterator::new([0xa953d79b83f6ab59, 0x6dea2059e200bd39]);
+    let trusted_len = a.len();
+    let (lower, some_upper) = a.size_hint();
+    let upper = some_upper.unwrap();
+    assert_eq!(trusted_len, 128);
+    assert_eq!(lower, 128);
+    assert_eq!(upper, 128);
+
+    let mut i = 0;
+    for _ in a {
+        i += 1;
+    }
+
+    assert_eq!(trusted_len, i);
 }
 
 pub use self::arith_impl::*;
