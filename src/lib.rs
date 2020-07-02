@@ -308,7 +308,7 @@ pub trait PrimeField: Field {
 /// An "engine" is a collection of types (fields, elliptic curve groups, etc.)
 /// with well-defined relationships. Specific relationships (for example, a
 /// pairing-friendly curve) can be defined in a subtrait.
-pub trait ScalarEngine: Sized + 'static + Clone + Send + Sync {
+pub trait ScalarEngine: Sized + 'static + Clone + Send + Sync + fmt::Debug {
     /// This is the scalar field of the engine's groups.
     type Fr: PrimeField + SqrtField;
 }

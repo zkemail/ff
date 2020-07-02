@@ -1,6 +1,6 @@
 [package]
 name = "ff_ce"
-version = "0.10.3"
+version = "0.11.0"
 authors = ["Sean Bowe <ewillbefull@gmail.com>",
     "Alex Gluchowski <alex@gluchowski.net>",
     "Alex Vlasov <alex.m.vlasov@gmail.com>"]
