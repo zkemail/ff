@@ -1,6 +1,6 @@
 [package]
 name = "ff_ce"
-version = "0.9.0"
+version = "0.12.0"
 authors = ["Sean Bowe <ewillbefull@gmail.com>",
     "Alex Gluchowski <alex@gluchowski.net>",
     "Alex Vlasov <alex.m.vlasov@gmail.com>"]
@@ -12,20 +12,17 @@ repository = "https://github.com/matter-labs/ff"
 edition = "2018"
 exclude = [
     "ff_derive_const",
-    "tester"
+    "tester",
+    "asm_tester"
 ]
 
 [dependencies]
 byteorder = "1"
 rand = "0.4"
-ff_derive_ce = { version = "0.7", path = "ff_derive", optional = true }
+ff_derive_ce = { version = "0.9", path = "ff_derive", optional = true }
 hex = {version = "0.4"}
-
-[dev.dependencies]
-num-bigint = "0.2"
-num-traits = "0.2"
-num-integer = "0.1"
 
 [features]
 default = []
 derive = ["ff_derive_ce"]
+asm_derive = ["ff_derive_ce", "ff_derive_ce/asm"]
