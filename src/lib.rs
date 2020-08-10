@@ -1,7 +1,5 @@
 #![allow(unused_imports)]
-
-// #![feature(test)]
-// mod tests;
+#![cfg_attr(feature = "asm", feature(asm))]
 
 extern crate byteorder;
 extern crate rand;
@@ -402,7 +400,6 @@ fn test_bit_iterator_length() {
 pub use self::arith_impl::*;
 
 mod arith_impl {
-
     /// Calculate a - b - borrow, returning the result and modifying
     /// the borrow value.
     #[inline(always)]
@@ -440,6 +437,150 @@ mod arith_impl {
         *carry = (tmp >> 64) as u64;
 
         tmp as u64
+    }
+
+    #[inline(always)]
+    pub fn full_width_mul(a: u64, b: u64) -> (u64, u64) {
+        let tmp = (a as u128) * (b as u128);
+
+        return (tmp as u64, (tmp >> 64) as u64);
+    }
+
+    #[inline(always)]
+    pub fn mac_by_value(a: u64, b: u64, c: u64) -> (u64, u64) {
+        let tmp = ((b as u128) * (c as u128)) + (a as u128);
+
+        (tmp as u64, (tmp >> 64) as u64)
+    }
+
+    #[inline(always)]
+    pub fn mac_by_value_return_carry_only(a: u64, b: u64, c: u64) -> u64 {
+        let tmp = ((b as u128) * (c as u128)) + (a as u128);
+
+        (tmp >> 64) as u64
+    }
+
+    #[inline(always)]
+    pub fn mac_with_carry_by_value(a: u64, b: u64, c: u64, carry: u64) -> (u64, u64) {
+        let tmp = ((b as u128) * (c as u128)) + (a as u128) + (carry as u128);
+
+        (tmp as u64, (tmp >> 64) as u64)
+    }
+
+    #[inline(always)]
+    pub fn mul_double_add_by_value(a: u64, b: u64, c: u64) -> (u64, u64, u64) {
+        // multiply
+        let tmp = (b as u128) * (c as u128);
+        // doulbe
+        let lo = tmp as u64;
+        let hi = (tmp >> 64) as u64;
+        let superhi = hi >> 63;
+        let hi = hi << 1 | lo >> 63;
+        let lo = lo << 1;
+        // add
+        let tmp = (lo as u128) + ((hi as u128) << 64) + (a as u128);
+
+        (tmp as u64, (tmp >> 64) as u64, superhi)
+    }
+
+    #[inline(always)]
+    pub fn mul_double_add_add_carry_by_value(a: u64, b: u64, c: u64, carry: u64) -> (u64, u64, u64) {
+        // multiply
+        let tmp = (b as u128) * (c as u128);
+        // doulbe
+        let lo = tmp as u64;
+        let hi = (tmp >> 64) as u64;
+        let superhi = hi >> 63;
+        let hi = hi << 1 | lo >> 63;
+        let lo = lo << 1;
+        // add
+        let tmp = (lo as u128) + ((hi as u128) << 64) + (a as u128) + (carry as u128);
+
+        (tmp as u64, (tmp >> 64) as u64, superhi)
+    }
+
+    #[inline(always)]
+    pub fn mul_double_add_add_carry_by_value_ignore_superhi(a: u64, b: u64, c: u64, carry: u64) -> (u64, u64) {
+        // multiply
+        let tmp = (b as u128) * (c as u128);
+        // doulbe
+        let lo = tmp as u64;
+        let hi = (tmp >> 64) as u64;
+        let hi = hi << 1 | lo >> 63;
+        let lo = lo << 1;
+        // add
+        let tmp = (lo as u128) + ((hi as u128) << 64) + (a as u128) + (carry as u128);
+
+        (tmp as u64, (tmp >> 64) as u64)
+    }
+
+    #[inline(always)]
+    pub fn mul_double_add_low_and_high_carry_by_value(b: u64, c: u64, lo_carry: u64, hi_carry: u64) -> (u64, u64, u64) {
+        // multiply
+        let tmp = (b as u128) * (c as u128);
+        // doulbe
+        let lo = tmp as u64;
+        let hi = (tmp >> 64) as u64;
+        let superhi = hi >> 63;
+        let hi = hi << 1 | lo >> 63;
+        let lo = lo << 1;
+        // add
+        let tmp = (lo as u128) + ((hi as u128) << 64) + (lo_carry as u128) + ((hi_carry as u128) << 64);
+
+        (tmp as u64, (tmp >> 64) as u64, superhi)
+    }
+
+    #[inline(always)]
+    pub fn mul_double_add_low_and_high_carry_by_value_ignore_superhi(b: u64, c: u64, lo_carry: u64, hi_carry: u64) -> (u64, u64) {
+        // multiply
+        let tmp = (b as u128) * (c as u128);
+        // doulbe
+        let lo = tmp as u64;
+        let hi = (tmp >> 64) as u64;
+        let hi = hi << 1 | lo >> 63;
+        let lo = lo << 1;
+        // add
+        let tmp = (lo as u128) + ((hi as u128) << 64) + (lo_carry as u128) + ((hi_carry as u128) << 64);
+
+        (tmp as u64, (tmp >> 64) as u64)
+    }
+
+    #[inline(always)]
+    pub fn mul_double_add_add_low_and_high_carry_by_value(a: u64, b: u64, c: u64, lo_carry: u64, hi_carry: u64) -> (u64, u64, u64) {
+        // multiply
+        let tmp = (b as u128) * (c as u128);
+        // doulbe
+        let lo = tmp as u64;
+        let hi = (tmp >> 64) as u64;
+        let superhi = hi >> 63;
+        let hi = hi << 1 | lo >> 63;
+        let lo = lo << 1;
+        // add
+        let tmp = (lo as u128) + ((hi as u128) << 64) + (a as u128) + (lo_carry as u128) + ((hi_carry as u128) << 64);
+
+        (tmp as u64, (tmp >> 64) as u64, superhi)
+    }
+
+    #[inline(always)]
+    pub fn mul_double_add_add_low_and_high_carry_by_value_ignore_superhi(a: u64, b: u64, c: u64, lo_carry: u64, hi_carry: u64) -> (u64, u64) {
+        // multiply
+        let tmp = (b as u128) * (c as u128);
+        // doulbe
+        let lo = tmp as u64;
+        let hi = (tmp >> 64) as u64;
+        let hi = hi << 1 | lo >> 63;
+        let lo = lo << 1;
+        // add
+        let tmp = (lo as u128) + ((hi as u128) << 64) + (a as u128) + (lo_carry as u128) + ((hi_carry as u128) << 64);
+
+        (tmp as u64, (tmp >> 64) as u64)
+    }
+
+    #[inline(always)]
+    pub fn mac_with_low_and_high_carry_by_value(a: u64, b: u64, c: u64, lo_carry: u64, hi_carry: u64) -> (u64, u64) {
+        let tmp = ((b as u128) * (c as u128)) + (a as u128) + (lo_carry as u128) + ((hi_carry as u128) << 64);
+
+        (tmp as u64, (tmp >> 64) as u64)
     }
 }
 

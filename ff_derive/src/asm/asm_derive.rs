@@ -1,32 +1,17 @@
-#![recursion_limit = "1024"]
-
-extern crate proc_macro;
-extern crate proc_macro2;
-extern crate syn;
-#[macro_use]
-extern crate quote;
- 
-extern crate num_bigint;
-extern crate num_integer;
-extern crate num_traits;
-
 use num_bigint::BigUint;
 use num_integer::Integer;
 use num_traits::{One, ToPrimitive, Zero};
 use quote::TokenStreamExt;
 use std::str::FromStr;
 
-#[cfg(feature = "asm")]
-mod asm;
+use super::super::{fetch_wrapped_ident, fetch_attr, get_temp, get_temp_with_literal};
+use crate::asm::impls_4::*;
 
-#[cfg(feature = "asm")]
-#[proc_macro_derive(PrimeFieldAsm, attributes(PrimeFieldModulus, PrimeFieldGenerator, UseADX))]
-pub fn prime_field_asm(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    self::asm::prime_field_asm_impl(input)
-}
+const MODULUS_PREFIX: &str = "MODULUS_";
+const MODULUS_NEGATED_PREFIX: &str = "MODULUS_NEG_";
 
-#[proc_macro_derive(PrimeField, attributes(PrimeFieldModulus, PrimeFieldGenerator, OptimisticCIOSMultiplication, OptimisticCIOSSquaring))]
-pub fn prime_field(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+// #[proc_macro_derive(PrimeFieldAsm, attributes(PrimeFieldModulus, PrimeFieldGenerator, UseADX))]
+pub fn prime_field_asm_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     // Parse the type definition
     let ast: syn::DeriveInput = syn::parse(input).unwrap();
 
@@ -48,12 +33,11 @@ pub fn prime_field(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         .expect("PrimeFieldGenerator should be a number");
 
     // User may opt-in for feature to generate CIOS based multiplication operation
-    let opt_in_cios_mul: Option<bool> = fetch_attr("OptimisticCIOSMultiplication", &ast.attrs)
-        .map(|el| el.parse().expect("OptimisticCIOSMultiplication should be `true` or `false`"));
+    let use_adx: Option<bool> = fetch_attr("UseADX", &ast.attrs)
+        .map(|el| el.parse().expect("UseADX should be `true` or `false`"));
     
-    // User may opt-in for feature to generate CIOS based squaring operation
-    let opt_in_cios_square: Option<bool> = fetch_attr("OptimisticCIOSSquaring", &ast.attrs)
-        .map(|el| el.parse().expect("OptimisticCIOSSquaring should be `true` or `false`"));
+
+    assert!(use_adx.unwrap(), "For now only ADX backend is used");
 
     // The arithmetic in this library only works if the modulus*2 is smaller than the backing
     // representation. Compute the number of limbs we need.
@@ -67,14 +51,12 @@ pub fn prime_field(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     }
 
+    assert_eq!(limbs, 4, "can only derive for 4 limb fitting modulus");
+
     let modulus_limbs = biguint_to_real_u64_vec(modulus.clone(), limbs);
     let top_limb = modulus_limbs.last().unwrap().clone().to_u64().unwrap();
     let can_use_optimistic_cios_mul = {
-        let mut can_use = if let Some(cios) = opt_in_cios_mul {
-            cios
-        } else {
-            false
-        };
+        let mut can_use = true;
         if top_limb == 0 {
             can_use = false;
         }
@@ -86,11 +68,7 @@ pub fn prime_field(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     };
 
     let can_use_optimistic_cios_sqr = {
-        let mut can_use = if let Some(cios) = opt_in_cios_square {
-            cios
-        } else {
-            false
-        };
+        let mut can_use = true;
         if top_limb == 0 {
             can_use = false;
         }
@@ -102,9 +80,12 @@ pub fn prime_field(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         can_use
     };
 
+    assert!(can_use_optimistic_cios_mul, "Can only derive for moduluses that fit in 255 bits - epsilon");
+    assert!(can_use_optimistic_cios_sqr, "Can only derive for moduluses that fit in 254 bits - epsilon");
+
     let mut gen = proc_macro2::TokenStream::new();
 
-    let (constants_impl, sqrt_impl) = prime_field_constants_and_sqrt(
+    let (constants_impl, mont_inv, sqrt_impl) = prime_field_constants_with_inv_and_sqrt(
         &ast.ident,
         &repr_ident,
         modulus,
@@ -114,60 +95,11 @@ pub fn prime_field(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     gen.extend(constants_impl);
     gen.extend(prime_field_repr_impl(&repr_ident, limbs));
-    gen.extend(prime_field_impl(&ast.ident, &repr_ident, can_use_optimistic_cios_mul, can_use_optimistic_cios_sqr, limbs));
+    gen.extend(prime_field_impl(&ast.ident, &repr_ident, mont_inv, limbs));
     gen.extend(sqrt_impl);
 
     // Return the generated impl
     gen.into()
-}
-
-/// Fetches the ident being wrapped by the type we're deriving.
-fn fetch_wrapped_ident(body: &syn::Data) -> Option<syn::Ident> {
-    match body {
-        &syn::Data::Struct(ref variant_data) => match variant_data.fields {
-            syn::Fields::Unnamed(ref fields) => {
-                if fields.unnamed.len() == 1 {
-                    match fields.unnamed[0].ty {
-                        syn::Type::Path(ref path) => {
-                            if path.path.segments.len() == 1 {
-                                return Some(path.path.segments[0].ident.clone());
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            _ => {}
-        },
-        _ => {}
-    };
-
-    None
-}
-
-/// Fetch an attribute string from the derived struct.
-fn fetch_attr(name: &str, attrs: &[syn::Attribute]) -> Option<String> {
-    for attr in attrs {
-        if let Ok(meta) = attr.parse_meta() {
-            match meta {
-                syn::Meta::NameValue(nv) => {
-                    if nv.path.is_ident(name) {
-                        match nv.lit {
-                            syn::Lit::Str(ref s) => return Some(s.value()),
-                            _ => {
-                                panic!("attribute {} should be a string", name);
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    panic!("attribute {} should be a string", name);
-                }
-            }
-        }
-    }
-
-    None
 }
 
 // Implement PrimeFieldRepr for the wrapped ident `repr` with `limbs` limbs.
@@ -439,13 +371,13 @@ fn test_exp() {
     );
 }
 
-fn prime_field_constants_and_sqrt(
+fn prime_field_constants_with_inv_and_sqrt(
     name: &syn::Ident,
     repr: &syn::Ident,
     modulus: BigUint,
     limbs: usize,
     generator: BigUint,
-) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
+) -> (proc_macro2::TokenStream, u64, proc_macro2::TokenStream) {
     let modulus_num_bits = biguint_num_bits(modulus.clone());
 
     // The number of bits we should "shave" from a randomly sampled reputation, i.e.,
@@ -577,7 +509,12 @@ fn prime_field_constants_and_sqrt(
     let r2 = biguint_to_u64_vec((&r * &r) % &modulus, limbs);
 
     let r = biguint_to_u64_vec(r, limbs);
+
+    // 2^k - modulus
+    let modulus_negated = (BigUint::one() << (64 * limbs)) - &modulus;
+
     let modulus = biguint_to_real_u64_vec(modulus, limbs);
+    let modulus_negated = biguint_to_real_u64_vec(modulus_negated, limbs);
 
     // Compute -m^-1 mod 2**64 by exponentiating by totient(2**64) - 1
     let mut inv = 1u64;
@@ -587,7 +524,7 @@ fn prime_field_constants_and_sqrt(
     }
     inv = inv.wrapping_neg();
 
-    (quote! {
+    let mut constants_gen = quote! {
         /// This is the modulus m of the prime field
         const MODULUS: #repr = #repr([#(#modulus,)*]);
 
@@ -616,27 +553,32 @@ fn prime_field_constants_and_sqrt(
 
         /// 2^s root of unity computed by GENERATOR^t
         const ROOT_OF_UNITY: #repr = #repr(#root_of_unity);
-    }, sqrt_impl)
-}
+    };
+    
+    for i in 0..4 {
+        let m = get_temp_with_literal(MODULUS_PREFIX, i);
+        let n = get_temp_with_literal(MODULUS_NEGATED_PREFIX, i);
+        let value = modulus[i];
+        let limb_neg = modulus_negated[i];
 
-// Returns r{n} as an ident.
-fn get_temp(n: usize) -> syn::Ident {
-    syn::Ident::new(&format!("r{}", n), proc_macro2::Span::call_site())
-}
+        constants_gen.extend(
+            quote!{
+                static #m: u64 = #value;
+                static #n: u64 = #limb_neg;
+            }
+        );
+    }
 
-fn get_temp_with_literal(literal: &str, n: usize) -> syn::Ident {
-    syn::Ident::new(&format!("{}{}", literal, n), proc_macro2::Span::call_site())
+    (constants_gen, inv, sqrt_impl)
 }
 
 /// Implement PrimeField for the derived type.
 fn prime_field_impl(
     name: &syn::Ident,
     repr: &syn::Ident,
-    can_use_cios_mul: bool,
-    can_use_cios_sqr: bool,
+    mont_inv: u64,
     limbs: usize,
 ) -> proc_macro2::TokenStream {
-
     // The parameter list for the mont_reduce() internal method.
     // r0: u64, mut r1: u64, mut r2: u64, ...
     let mut mont_paramlist = proc_macro2::TokenStream::new();
@@ -702,414 +644,6 @@ fn prime_field_impl(
         gen
     }
 
-    fn sqr_impl(a: proc_macro2::TokenStream, limbs: usize) -> proc_macro2::TokenStream {
-        let mut gen = proc_macro2::TokenStream::new();
-
-        for i in 0..(limbs - 1) {
-            gen.extend(quote!{
-                let mut carry = 0;
-            });
-
-            for j in (i + 1)..limbs {
-                let temp = get_temp(i + j);
-                if i == 0 {
-                    gen.extend(quote!{
-                        let #temp = crate::ff::mac_with_carry(0, (#a.0).0[#i], (#a.0).0[#j], &mut carry);
-                    });
-                } else {
-                    gen.extend(quote!{
-                        let #temp = crate::ff::mac_with_carry(#temp, (#a.0).0[#i], (#a.0).0[#j], &mut carry);
-                    });
-                }
-            }
-
-            let temp = get_temp(i + limbs);
-
-            gen.extend(quote!{
-                let #temp = carry;
-            });
-        }
-
-        if limbs != 1 {
-            for i in 1..(limbs * 2) {
-                let temp0 = get_temp(limbs * 2 - i);
-                let temp1 = get_temp(limbs * 2 - i - 1);
-
-                if i == 1 {
-                    gen.extend(quote!{
-                        let #temp0 = #temp1 >> 63;
-                    });
-                } else if i == (limbs * 2 - 1) {
-                    gen.extend(quote!{
-                        let #temp0 = #temp0 << 1;
-                    });
-                } else {
-                    gen.extend(quote!{
-                        let #temp0 = (#temp0 << 1) | (#temp1 >> 63);
-                    });
-                }
-            }
-        } else {
-            gen.extend(quote!{
-                let r1 = 0;
-            });
-        }
-
-        gen.extend(quote!{
-            let mut carry = 0;
-        });
-
-        for i in 0..limbs {
-            let temp0 = get_temp(i * 2);
-            let temp1 = get_temp(i * 2 + 1);
-            if i == 0 {
-                gen.extend(quote!{
-                    let #temp0 = crate::ff::mac_with_carry(0, (#a.0).0[#i], (#a.0).0[#i], &mut carry);
-                });
-            } else {
-                gen.extend(quote!{
-                    let #temp0 = crate::ff::mac_with_carry(#temp0, (#a.0).0[#i], (#a.0).0[#i], &mut carry);
-                });
-            }
-
-            gen.extend(quote!{
-                let #temp1 = crate::ff::adc(#temp1, 0, &mut carry);
-            });
-        }
-
-        let mut mont_calling = proc_macro2::TokenStream::new();
-        mont_calling.append_separated(
-            (0..(limbs * 2)).map(|i| get_temp(i)),
-            proc_macro2::Punct::new(',', proc_macro2::Spacing::Alone),
-        );
-
-        gen.extend(quote!{
-            self.mont_reduce(#mont_calling);
-        });
-
-        gen
-    }
-
-    fn mul_impl(
-        a: proc_macro2::TokenStream,
-        b: proc_macro2::TokenStream,
-        limbs: usize,
-    ) -> proc_macro2::TokenStream {
-        let mut gen = proc_macro2::TokenStream::new();
-
-        for i in 0..limbs {
-            gen.extend(quote!{
-                let mut carry = 0;
-            });
-
-            for j in 0..limbs {
-                let temp = get_temp(i + j);
-
-                if i == 0 {
-                    gen.extend(quote!{
-                        let #temp = crate::ff::mac_with_carry(0, (#a.0).0[#i], (#b.0).0[#j], &mut carry);
-                    });
-                } else {
-                    gen.extend(quote!{
-                        let #temp = crate::ff::mac_with_carry(#temp, (#a.0).0[#i], (#b.0).0[#j], &mut carry);
-                    });
-                }
-            }
-
-            let temp = get_temp(i + limbs);
-
-            gen.extend(quote!{
-                let #temp = carry;
-            });
-        }
-
-        let mut mont_calling = proc_macro2::TokenStream::new();
-        mont_calling.append_separated(
-            (0..(limbs * 2)).map(|i| get_temp(i)),
-            proc_macro2::Punct::new(',', proc_macro2::Spacing::Alone),
-        );
-
-        gen.extend(quote!{
-            self.mont_reduce(#mont_calling);
-        });
-
-        gen
-    }
-
-    fn optimistic_cios_mul_impl(
-        a: proc_macro2::TokenStream,
-        b: proc_macro2::TokenStream,
-        name: &syn::Ident,
-        repr: &syn::Ident,
-        limbs: usize,
-    ) -> proc_macro2::TokenStream {
-        let mut gen = proc_macro2::TokenStream::new();
-
-        let mut other_limbs_set = proc_macro2::TokenStream::new();
-        other_limbs_set.append_separated(
-            (0..limbs).map(|i| get_temp_with_literal("b", i)),
-            proc_macro2::Punct::new(',', proc_macro2::Spacing::Alone),
-        );
-
-        gen.extend(quote!{
-            let [#other_limbs_set] = (#b.0).0;
-        });
-
-        for i in 0..limbs {
-            gen.extend(quote!{
-                let a = (#a.0).0[#i];
-            });
-
-            let temp = get_temp(0);
-
-            let b = get_temp_with_literal("b", 0);
-
-            if i == 0 {
-                gen.extend(quote!{
-                    let (#temp, carry) = crate::ff::full_width_mul(a, #b);
-                });
-            } else {
-                gen.extend(quote!{
-                    let (#temp, carry) = crate::ff::mac_by_value(#temp, a, #b);
-                });
-            }
-            gen.extend(quote!{
-                let m = r0.wrapping_mul(INV);
-                let red_carry = crate::ff::mac_by_value_return_carry_only(#temp, m, MODULUS.0[0]);
-            });
-
-            for j in 1..limbs {
-                let temp = get_temp(j);
-
-                let b = get_temp_with_literal("b", j);
-
-                if i == 0 {
-                    gen.extend(quote!{
-                        let (#temp, carry) = crate::ff::mac_by_value(carry, a, #b);
-                    });
-                } else {
-                    gen.extend(quote!{
-                        let (#temp, carry) = crate::ff::mac_with_carry_by_value(#temp, a, #b, carry);
-                    });
-                }
-
-                let temp_prev = get_temp(j-1);
-
-                gen.extend(quote!{
-                    let (#temp_prev, red_carry) = crate::ff::mac_with_carry_by_value(#temp, m, MODULUS.0[#j], red_carry);
-                });
-            }
-
-            let temp = get_temp(limbs-1);
-            gen.extend(quote!{
-                let #temp = red_carry + carry;
-            });
-        }
-
-        let mut limbs_set = proc_macro2::TokenStream::new();
-        limbs_set.append_separated(
-            (0..limbs).map(|i| get_temp(i)),
-            proc_macro2::Punct::new(',', proc_macro2::Spacing::Alone),
-        );
-
-        gen.extend(quote!{
-            *self = #name(#repr([#limbs_set]));
-            self.reduce();
-        });
-
-        gen
-    }
-
-    fn optimistic_cios_sqr_impl(
-        a: proc_macro2::TokenStream,
-        name: &syn::Ident,
-        repr: &syn::Ident,
-        limbs: usize,
-    ) -> proc_macro2::TokenStream {
-        let mut gen = proc_macro2::TokenStream::new();
-
-        let mut this_limbs_set = proc_macro2::TokenStream::new();
-        this_limbs_set.append_separated(
-            (0..limbs).map(|i| get_temp_with_literal("a", i)),
-            proc_macro2::Punct::new(',', proc_macro2::Spacing::Alone),
-        );
-
-        gen.extend(quote!{
-            let [#this_limbs_set] = (#a.0).0;
-        });
-
-        for i in 0..limbs {
-            for red_idx in 0..i {
-                if red_idx == 0 {
-                    let temp = get_temp(0);
-
-                    gen.extend(quote!{
-                        let m = r0.wrapping_mul(INV);
-                        let red_carry = crate::ff::mac_by_value_return_carry_only(#temp, m, MODULUS.0[0]);
-                    });
-                } else {
-                    let temp = get_temp(red_idx);
-                    let temp_prev = get_temp(red_idx-1);
-                    gen.extend(quote!{
-                        let (#temp_prev, red_carry) = crate::ff::mac_with_carry_by_value(#temp, m, MODULUS.0[#red_idx], red_carry);
-                    });
-
-                }
-            }
-            let a = get_temp_with_literal("a", i);
-
-            // single square step
-            if i == 0 {
-                // for a first pass just square and reduce
-                let temp = get_temp(0);
-
-                gen.extend(quote!{
-                    let (#temp, carry) = crate::ff::full_width_mul(#a, #a);
-                    let m = r0.wrapping_mul(INV);
-                    let red_carry = crate::ff::mac_by_value_return_carry_only(#temp, m, MODULUS.0[0]);
-                });
-            } else {
-                // for next passes square, add previous value and reduce
-                let temp = get_temp(i);
-                let temp_prev = get_temp(i-1);
-                gen.extend(quote!{
-                    let (#temp, carry) = crate::ff::mac_by_value(#temp, #a, #a);
-                    
-                });
-
-                if i == limbs - 1 {
-                    gen.extend(quote!{
-                        let (#temp_prev, #temp) = crate::ff::mac_with_low_and_high_carry_by_value(
-                            red_carry, m, MODULUS.0[#i], #temp, carry
-                        );
-                    });
-                } else {
-                    gen.extend(quote!{
-                        let (#temp_prev, red_carry) = crate::ff::mac_with_carry_by_value(#temp, m, MODULUS.0[#i], red_carry);
-                    });
-                }
-            }
-
-            // continue with propagation and reduction
-            for j in (i+1)..limbs {
-                let b = get_temp_with_literal("a", j);
-
-                let temp = get_temp(j);
-
-                if i == 0 {
-                    if j == limbs - 1 {
-                        let temp_prev = get_temp(j-1);
-
-                        gen.extend(quote!{
-                            let (#temp, carry) = crate::ff::mul_double_add_low_and_high_carry_by_value_ignore_superhi(
-                                #a, #b, carry, superhi
-                            );
-
-                            let (#temp_prev, #temp) = crate::ff::mac_with_low_and_high_carry_by_value(
-                                red_carry, m, MODULUS.0[#j], #temp, carry 
-                            );
-                        });
-                    } else {
-                        if j == i+1 {
-                            gen.extend(quote!{
-                                let (#temp, carry, superhi) = crate::ff::mul_double_add_by_value(
-                                    carry, #a, #b, 
-                                );
-                            });
-                        } else {
-                            gen.extend(quote!{
-                                let (#temp, carry, superhi) = crate::ff::mul_double_add_low_and_high_carry_by_value(
-                                    #a, #b, carry, superhi
-                                );
-                            });
-                        } 
-
-                        let temp_prev = get_temp(j-1);
-
-                        gen.extend(quote!{
-                            let (#temp_prev, red_carry) = crate::ff::mac_with_carry_by_value(#temp, m, MODULUS.0[#j], red_carry);
-                        });
-                    }
-                } else {
-                    if j == limbs - 1 {
-                        let temp_prev = get_temp(j-1);
-
-                        if j == i+1 {
-                            gen.extend(quote!{
-                                let (#temp, carry) = crate::ff::mul_double_add_add_carry_by_value_ignore_superhi(
-                                    #temp, #a, #b, carry
-                                );
-                            });
-                        } else {
-                            gen.extend(quote!{
-                                let (#temp, carry) = crate::ff::mul_double_add_add_low_and_high_carry_by_value_ignore_superhi(
-                                    #temp, #a, #b, carry, superhi
-                                );
-                            });
-                            
-                        }
-
-                        gen.extend(quote!{
-                            let (#temp_prev, #temp) = crate::ff::mac_with_low_and_high_carry_by_value(
-                                red_carry, m, MODULUS.0[#j], #temp, carry 
-                            );
-                        });
-                    } else {
-                        if j == i+1 {
-                            gen.extend(quote!{
-                                let (#temp, carry, superhi) = crate::ff::mul_double_add_add_carry_by_value(
-                                    #temp, #a, #b, carry
-                                );
-                            });
-                        } else {
-                            gen.extend(quote!{
-                                let (#temp, carry, superhi) = crate::ff::mul_double_add_add_low_and_high_carry_by_value_ignore_superhi(
-                                    #temp, #a, #b, carry, superhi
-                                );
-                            });
-                        } 
-                        let temp_prev = get_temp(j-1);
-
-                        gen.extend(quote!{
-                            let (#temp_prev, red_carry) = mac_with_carry_by_value(#temp, m, MODULUS.0[#j], red_carry);
-                        });
-                    }
-                }
-                
-            }
-
-            // let temp = get_temp(limbs-1);
-            
-            // gen.extend(quote!{
-            //     let #temp = red_carry + carry;
-            // });
-        }
-
-        let mut limbs_set = proc_macro2::TokenStream::new();
-        limbs_set.append_separated(
-            (0..limbs).map(|i| get_temp(i)),
-            proc_macro2::Punct::new(',', proc_macro2::Spacing::Alone),
-        );
-
-        gen.extend(quote!{
-            *self = #name(#repr([#limbs_set]));
-            self.reduce();
-        });
-
-        gen
-    }
-
-    let multiply_impl = if can_use_cios_mul {
-        optimistic_cios_mul_impl(quote!{self}, quote!{other}, name, repr, limbs)
-    } else {
-        mul_impl(quote!{self}, quote!{other}, limbs)
-    };
-    let squaring_impl = if can_use_cios_sqr {
-        optimistic_cios_sqr_impl(quote!{self}, name, repr, limbs)
-    } else {
-        sqr_impl(quote!{self}, limbs)
-    };
-
     let top_limb_index = limbs - 1;
 
     let montgomery_impl = mont_impl(limbs);
@@ -1123,6 +657,15 @@ fn prime_field_impl(
         proc_macro2::Punct::new(',', proc_macro2::Spacing::Alone),
     );
     
+    let mul_asm_impl = mul_impl(mont_inv, MODULUS_PREFIX);
+    let sqr_asm_impl = sqr_impl(mont_inv, MODULUS_PREFIX);
+    // let add_asm_impl = add_impl(MODULUS_PREFIX);
+    let add_asm_impl = add_impl(MODULUS_NEGATED_PREFIX);
+    let sub_asm_impl = sub_impl(MODULUS_PREFIX);
+    // let sub_asm_impl = sub_impl(MODULUS_NEGATED_PREFIX);
+    // let double_asm_impl = double_impl(MODULUS_PREFIX);
+    let double_asm_impl = double_impl(MODULUS_NEGATED_PREFIX);
+
     quote!{
         impl ::std::marker::Copy for #name { }
 
@@ -1266,30 +809,17 @@ fn prime_field_impl(
 
             #[inline]
             fn add_assign(&mut self, other: &#name) {
-                // This cannot exceed the backing capacity.
-                self.0.add_nocarry(&other.0);
-
-                // However, it may need to be reduced.
-                self.reduce();
+                (self.0).0 = #name::add_asm_adx_with_reduction(&(self.0).0, &(other.0).0);
             }
 
             #[inline]
             fn double(&mut self) {
-                // This cannot exceed the backing capacity.
-                self.0.mul2();
-
-                // However, it may need to be reduced.
-                self.reduce();
+                (self.0).0 = Self::double_asm_adx_with_reduction(&(self.0).0);
             }
 
             #[inline]
             fn sub_assign(&mut self, other: &#name) {
-                // If `other` is larger than `self`, we'll need to add the modulus to self first.
-                if other.0 > self.0 {
-                    self.0.add_nocarry(&MODULUS);
-                }
-
-                self.0.sub_noborrow(&other.0);
+                (self.0).0 = Self::sub_asm_adx_with_reduction(&(self.0).0, &(other.0).0);
             }
 
             #[inline]
@@ -1364,13 +894,13 @@ fn prime_field_impl(
             #[inline]
             fn mul_assign(&mut self, other: &#name)
             {
-                #multiply_impl
+                (self.0).0 = Self::mont_mul_asm_adx_with_reduction(&(self.0).0, &(other.0).0);
             }
 
             #[inline]
             fn square(&mut self)
             {
-                #squaring_impl
+                (self.0).0 = Self::mont_sqr_asm_adx_with_reduction(&(self.0).0);
             }
         }
 
@@ -1419,6 +949,16 @@ fn prime_field_impl(
 
                 self.reduce();
             }
+
+            #mul_asm_impl
+
+            #sqr_asm_impl
+
+            #add_asm_impl
+
+            #sub_asm_impl
+
+            #double_asm_impl
         }
     }
 }
