@@ -395,7 +395,8 @@ fn biguint_to_real_u64_vec(mut v: BigUint, limbs: usize) -> Vec<u64> {
     let mut ret = vec![];
 
     while v > BigUint::zero() {
-        ret.push((&v % &m).to_u64().unwrap());
+        let rem: BigUint = &v % &m;
+        ret.push(rem.to_u64().unwrap());
         v = v >> 64;
     }
 
@@ -453,6 +454,11 @@ fn prime_field_constants_and_sqrt(
     // 3 bits from the beginning of a randomly sampled 384 bit representation to
     // reduce the cost of rejection sampling.
     let repr_shave_bits = (64 * limbs as u32) - biguint_num_bits(modulus.clone());
+    let repr_shave_mask = if repr_shave_bits == 64 {
+        0u64
+    } else {
+        0xffffffffffffffffu64 >> repr_shave_bits
+    };
 
     // Compute R = 2**(64 * limbs) mod m
     let r = (BigUint::one() << (limbs * 64)) % &modulus;
@@ -597,6 +603,9 @@ fn prime_field_constants_and_sqrt(
         /// The number of bits that must be shaved from the beginning of
         /// the representation when randomly sampling.
         const REPR_SHAVE_BITS: u32 = #repr_shave_bits;
+
+        /// Precalculated mask to shave bits from the top limb in random sampling
+        const TOP_LIMB_SHAVE_MASK: u64 = #repr_shave_mask;
 
         /// 2^{limbs*64} mod m
         const R: #repr = #repr(#r);
@@ -1175,7 +1184,7 @@ fn prime_field_impl(
                     let mut tmp = #name(#repr::rand(rng));
 
                     // Mask away the unused bits at the beginning.
-                    tmp.0.as_mut()[#top_limb_index] &= 0xffffffffffffffffu64.wrapping_shr(REPR_SHAVE_BITS);
+                    tmp.0.as_mut()[#top_limb_index] &= TOP_LIMB_SHAVE_MASK;
 
                     if tmp.is_valid() {
                         return tmp
