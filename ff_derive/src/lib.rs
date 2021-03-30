@@ -1175,7 +1175,7 @@ fn prime_field_impl(
                     let mut tmp = #name(#repr::rand(rng));
 
                     // Mask away the unused bits at the beginning.
-                    tmp.0.as_mut()[#top_limb_index] &= 0xffffffffffffffff >> REPR_SHAVE_BITS;
+                    tmp.0.as_mut()[#top_limb_index] &= 0xffffffffffffffff.wrapping_shr(REPR_SHAVE_BITS);
 
                     if tmp.is_valid() {
                         return tmp
