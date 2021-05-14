@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-#![cfg_attr(feature = "asm", feature(asm))]
+#![cfg_attr(feature = "asm_derive", feature(asm))]
 
 extern crate byteorder;
 extern crate rand;

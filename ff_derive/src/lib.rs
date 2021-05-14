@@ -16,6 +16,9 @@ use num_traits::{One, ToPrimitive, Zero};
 use quote::TokenStreamExt;
 use std::str::FromStr;
 
+mod utils;
+use utils::*;
+
 #[cfg(feature = "asm")]
 mod asm;
 
@@ -387,57 +390,6 @@ fn prime_field_repr_impl(repr: &syn::Ident, limbs: usize) -> proc_macro2::TokenS
             }
         }
     }
-}
-
-/// Convert BigUint into a vector of 64-bit limbs.
-fn biguint_to_real_u64_vec(mut v: BigUint, limbs: usize) -> Vec<u64> {
-    let m = BigUint::one() << 64;
-    let mut ret = vec![];
-
-    while v > BigUint::zero() {
-        let rem: BigUint = &v % &m;
-        ret.push(rem.to_u64().unwrap());
-        v = v >> 64;
-    }
-
-    while ret.len() < limbs {
-        ret.push(0);
-    }
-
-    assert!(ret.len() == limbs);
-
-    ret
-}
-
-/// Convert BigUint into a tokenized vector of 64-bit limbs.
-fn biguint_to_u64_vec(v: BigUint, limbs: usize) -> proc_macro2::TokenStream {
-    let ret = biguint_to_real_u64_vec(v, limbs);
-    quote!([#(#ret,)*])
-}
-
-fn biguint_num_bits(mut v: BigUint) -> u32 {
-    let mut bits = 0;
-
-    while v != BigUint::zero() {
-        v = v >> 1;
-        bits += 1;
-    }
-
-    bits
-}
-
-#[test]
-fn test_exp() {
-    assert_eq!(
-        BigUint::from_str("4398572349857239485729348572983472345").unwrap().modpow(
-            &BigUint::from_str("5489673498567349856734895").unwrap(),
-            &BigUint::from_str(
-                "52435875175126190479447740508185965837690552500527637822603658699938581184513"
-        ).unwrap()),
-        BigUint::from_str(
-            "4371221214068404307866768905142520595925044802278091865033317963560480051536"
-        ).unwrap()
-    );
 }
 
 fn prime_field_constants_and_sqrt(
