@@ -1,6 +1,6 @@
 [package]
 name = "ff_derive_ce"
-version = "0.10.0"
+version = "0.11.0"
 authors = ["Sean Bowe <ewillbefull@gmail.com>",    
     "Alex Gluchowski <alex@gluchowski.net>",
     "Alex Vlasov <alex.m.vlasov@gmail.com>"]
@@ -21,7 +21,9 @@ num-integer = "0.1"
 proc-macro2 = "1"
 quote = "1"
 syn = "1"
+serde = {version = "1", features = ["derive"]}
 
 [features]
 default = []
 asm = []
+serde = []

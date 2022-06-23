@@ -1,6 +1,6 @@
 [package]
 name = "ff_ce"
-version = "0.13.1"
+version = "0.14.1"
 authors = ["Sean Bowe <ewillbefull@gmail.com>",
     "Alex Gluchowski <alex@gluchowski.net>",
     "Alex Vlasov <alex.m.vlasov@gmail.com>"]
@@ -19,9 +19,10 @@ exclude = [
 [dependencies]
 byteorder = "1"
 rand = "0.4"
-ff_derive_ce = { version = "0.10.*", optional = true }
+ff_derive_ce = { version = "0.11", optional = true }
 # ff_derive_ce = { path = "ff_derive", optional = true }
 hex = {version = "0.4"}
+serde = "1"
 
 [features]
 default = []

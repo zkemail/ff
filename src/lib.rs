@@ -1,8 +1,8 @@
 #![allow(unused_imports)]
-#![cfg_attr(feature = "asm_derive", feature(asm))]
 
 extern crate byteorder;
 extern crate rand;
+extern crate serde;
 extern crate hex as hex_ext;
 pub mod hex {
     pub use hex_ext::*;
@@ -21,8 +21,20 @@ use std::hash;
 use std::io::{self, Read, Write};
 
 /// This trait represents an element of a field.
-pub trait Field:
-    Sized + Eq + Copy + Clone + Send + Sync + fmt::Debug + fmt::Display + 'static + rand::Rand + hash::Hash + Default
+pub trait Field: Sized 
+    + Eq 
+    + Copy 
+    + Clone 
+    + Send 
+    + Sync 
+    + fmt::Debug 
+    + fmt::Display 
+    + 'static 
+    + rand::Rand 
+    + hash::Hash 
+    + Default 
+    + serde::Serialize
+    + serde::de::DeserializeOwned
 {
     /// Returns the zero element of the field, the additive identity.
     fn zero() -> Self;
@@ -111,6 +123,8 @@ pub trait PrimeFieldRepr:
     + AsMut<[u64]>
     + From<u64>
     + hash::Hash
+    + serde::Serialize
+    + serde::de::DeserializeOwned
 {
     /// Subtract another represetation from this one.
     fn sub_noborrow(&mut self, other: &Self);
@@ -306,7 +320,7 @@ pub trait PrimeField: Field {
 /// An "engine" is a collection of types (fields, elliptic curve groups, etc.)
 /// with well-defined relationships. Specific relationships (for example, a
 /// pairing-friendly curve) can be defined in a subtrait.
-pub trait ScalarEngine: Sized + 'static + Clone + Send + Sync + fmt::Debug {
+pub trait ScalarEngine: Sized + 'static + Clone + Copy + Send + Sync + fmt::Debug {
     /// This is the scalar field of the engine's groups.
     type Fr: PrimeField + SqrtField;
 }

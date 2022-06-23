@@ -107,7 +107,7 @@ pub fn prime_field_asm_impl(input: proc_macro::TokenStream) -> proc_macro::Token
 fn prime_field_repr_impl(repr: &syn::Ident, limbs: usize) -> proc_macro2::TokenStream {
     quote! {
 
-        #[derive(Copy, Clone, PartialEq, Eq, Default)]
+        #[derive(Copy, Clone, PartialEq, Eq, Default, ::serde::Serialize, ::serde::Deserialize)]
         pub struct #repr(
             pub [u64; #limbs]
         );
@@ -910,6 +910,26 @@ fn prime_field_impl(
             #sub_asm_impl
 
             #double_asm_impl
+        }
+
+        impl ::serde::Serialize for #name {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+                where S: ::serde::Serializer 
+            {
+                let repr = self.into_repr();
+                repr.serialize(serializer)
+            }
+        }
+
+        impl<'de> ::serde::Deserialize<'de> for #name {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where D: ::serde::Deserializer<'de> 
+            {
+                let repr = #repr::deserialize(deserializer)?;
+                let new = Self::from_repr(repr).expect("serialized representation is expected to be valid");
+
+                Ok(new)
+            }
         }
     }
 }
