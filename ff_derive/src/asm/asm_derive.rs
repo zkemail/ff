@@ -84,6 +84,11 @@ pub fn prime_field_asm_impl(input: proc_macro::TokenStream) -> proc_macro::Token
     assert!(can_use_optimistic_cios_mul, "Can only derive for moduluses that fit in 255 bits - epsilon");
     assert!(can_use_optimistic_cios_sqr, "Can only derive for moduluses that fit in 254 bits - epsilon");
 
+    let random_id = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .subsec_nanos();
+
     let mut gen = proc_macro2::TokenStream::new();
 
     let (constants_impl, mont_inv, sqrt_impl) = prime_field_constants_with_inv_and_sqrt(
@@ -92,11 +97,12 @@ pub fn prime_field_asm_impl(input: proc_macro::TokenStream) -> proc_macro::Token
         modulus,
         limbs,
         generator,
+        random_id
     );
 
     gen.extend(constants_impl);
     gen.extend(prime_field_repr_impl(&repr_ident, limbs));
-    gen.extend(prime_field_impl(&ast.ident, &repr_ident, mont_inv, limbs));
+    gen.extend(prime_field_impl(&ast.ident, &repr_ident, mont_inv, limbs, random_id));
     gen.extend(sqrt_impl);
 
     // Return the generated impl
@@ -328,6 +334,7 @@ fn prime_field_constants_with_inv_and_sqrt(
     modulus: BigUint,
     limbs: usize,
     generator: BigUint,
+    random_id: u32
 ) -> (proc_macro2::TokenStream, u64, proc_macro2::TokenStream) {
     let modulus_num_bits = biguint_num_bits(modulus.clone());
 
@@ -507,14 +514,16 @@ fn prime_field_constants_with_inv_and_sqrt(
     };
     
     for i in 0..4 {
-        let m = get_temp_with_literal(MODULUS_PREFIX, i);
-        let n = get_temp_with_literal(MODULUS_NEGATED_PREFIX, i);
+        let m = get_temp_with_literal(&format!("{}{}_", MODULUS_PREFIX, random_id), i);
+        let n = get_temp_with_literal(&format!("{}{}_", MODULUS_NEGATED_PREFIX, random_id), i);
         let value = modulus[i];
         let limb_neg = modulus_negated[i];
 
         constants_gen.extend(
             quote!{
+                #[no_mangle]
                 static #m: u64 = #value;
+                #[no_mangle]
                 static #n: u64 = #limb_neg;
             }
         );
@@ -529,6 +538,7 @@ fn prime_field_impl(
     repr: &syn::Ident,
     mont_inv: u64,
     limbs: usize,
+    random_id: u32,
 ) -> proc_macro2::TokenStream {
     // The parameter list for the mont_reduce() internal method.
     // r0: u64, mut r1: u64, mut r2: u64, ...
@@ -608,14 +618,17 @@ fn prime_field_impl(
         proc_macro2::Punct::new(',', proc_macro2::Spacing::Alone),
     );
     
-    let mul_asm_impl = mul_impl(mont_inv, MODULUS_PREFIX);
-    let sqr_asm_impl = sqr_impl(mont_inv, MODULUS_PREFIX);
+    let modulus_random_prefix = format!("{}{}_", MODULUS_PREFIX, random_id)
+    let modulus_neg_random_prefix = format!("{}{}_", MODULUS_NEGATED_PREFIX, random_id)
+
+    let mul_asm_impl = mul_impl(mont_inv, &modulus_random_prefix);
+    let sqr_asm_impl = sqr_impl(mont_inv, &modulus_random_prefix);
     // let add_asm_impl = add_impl(MODULUS_PREFIX);
-    let add_asm_impl = add_impl(MODULUS_NEGATED_PREFIX);
-    let sub_asm_impl = sub_impl(MODULUS_PREFIX);
+    let add_asm_impl = add_impl(&modulus_neg_random_prefix);
+    let sub_asm_impl = sub_impl(&modulus_random_prefix);
     // let sub_asm_impl = sub_impl(MODULUS_NEGATED_PREFIX);
     // let double_asm_impl = double_impl(MODULUS_PREFIX);
-    let double_asm_impl = double_impl(MODULUS_NEGATED_PREFIX);
+    let double_asm_impl = double_impl(&modulus_neg_random_prefix);
 
     quote!{
         impl ::std::marker::Copy for #name { }
