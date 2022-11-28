@@ -22,7 +22,7 @@ pub(crate) fn mul_impl(mont_inv: u64, modulus_static_prefix: &str) -> proc_macro
             let mut r3: u64;
 
             unsafe {
-                asm!(
+                core::arch::asm!(
                     // round 0
                     "mov rdx, qword ptr [{a_ptr} + 0]",
                     "xor r8d, r8d",
@@ -228,7 +228,7 @@ pub(crate) fn sqr_impl(mont_inv: u64, modulus_static_prefix: &str) -> proc_macro
             let mut r3: u64;
 
             unsafe {
-                asm!(
+                core::arch::asm!(
                     // round 0
                     "mov rdx, qword ptr [{a_ptr} + 0]",
                     "xor r8d, r8d",
@@ -426,7 +426,7 @@ pub(crate) fn add_impl(modulus_static_prefix: &str) -> proc_macro2::TokenStream 
             let mut r3: u64;
 
             unsafe {
-                asm!(
+                core::arch::asm!(
                     // we sum (a+b) using addition chain with OF
                     // and sum (a+b) - p using addition chain with CF
                     // if (a+b) does not overflow the modulus
@@ -477,7 +477,7 @@ pub(crate) fn add_impl(modulus_static_prefix: &str) -> proc_macro2::TokenStream 
             }
 
             // unsafe {
-            //     asm!(
+            //     core::arch::asm!(
             //         "xor r12d, r12d",
             //         "mov r12, qword ptr [{a_ptr} + 0]",
             //         "mov r13, qword ptr [{a_ptr} + 8]",
@@ -553,7 +553,7 @@ pub(crate) fn double_impl(modulus_static_prefix: &str) -> proc_macro2::TokenStre
             let mut r3: u64;
 
             unsafe {
-                asm!(
+                core::arch::asm!(
                     // we sum (a+b) using addition chain with OF
                     // and sum (a+b) - p using addition chain with CF
                     // if (a+b) does not overflow the modulus
@@ -604,7 +604,7 @@ pub(crate) fn double_impl(modulus_static_prefix: &str) -> proc_macro2::TokenStre
             }
 
             // unsafe {
-            //     asm!(
+            //     core::arch::asm!(
             //         "xor r12d, r12d",
             //         "mov r12, qword ptr [{a_ptr} + 0]",
             //         "mov r13, qword ptr [{a_ptr} + 8]",
@@ -679,7 +679,7 @@ pub(crate) fn sub_impl(modulus_static_prefix: &str) -> proc_macro2::TokenStream 
             let mut r3: u64;
 
             unsafe {
-                asm!(
+                core::arch::asm!(
                     "xor r12d, r12d",
                     "mov r12, qword ptr [{a_ptr} + 0]",
                     "sub r12, qword ptr [{b_ptr} + 0]",
