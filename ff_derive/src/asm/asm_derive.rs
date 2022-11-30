@@ -618,8 +618,8 @@ fn prime_field_impl(
         proc_macro2::Punct::new(',', proc_macro2::Spacing::Alone),
     );
     
-    let modulus_random_prefix = format!("{}{}_", MODULUS_PREFIX, random_id)
-    let modulus_neg_random_prefix = format!("{}{}_", MODULUS_NEGATED_PREFIX, random_id)
+    let modulus_random_prefix = format!("{}{}_", MODULUS_PREFIX, random_id);
+    let modulus_neg_random_prefix = format!("{}{}_", MODULUS_NEGATED_PREFIX, random_id);
 
     let mul_asm_impl = mul_impl(mont_inv, &modulus_random_prefix);
     let sqr_asm_impl = sqr_impl(mont_inv, &modulus_random_prefix);
