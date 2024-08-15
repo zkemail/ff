@@ -1,3 +1,7 @@
+> [!WARNING]
+> This crate has been archived. Development has moved to the [zksync-crypto](https://github.com/matter-labs/zksync-crypto) repository.
+> Please use it instead.
+
 # "FF community edition"
 
 This library is community maintained fork of the original `ff` library by Sean Bowe. Name of the library is changed to allow publishing to the `crates.io`
